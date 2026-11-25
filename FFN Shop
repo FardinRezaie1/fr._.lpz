@@ -1,0 +1,50 @@
+
+-- FFN SHOP: Datenbank für Angebote
+
+create table if not exists public.listings (
+  id uuid primary key default gen_random_uuid(),
+  seller_id uuid not null references auth.users(id) on delete cascade,
+  title text not null check (char_length(title) between 4 and 100),
+  platform text not null check (
+    platform in ('Xbox','PlayStation','Steam','Amazon','Nintendo','Google Play')
+  ),
+  price numeric(10,2) not null check (price > 0 and price <= 500),
+  description text default '',
+  status text not null default 'active'
+    check (status in ('active','sold','disabled')),
+  created_at timestamptz not null default now()
+);
+
+alter table public.listings enable row level security;
+
+-- Jeder darf aktive Angebote ansehen
+create policy "Aktive Angebote ansehen"
+on public.listings
+for select
+to anon, authenticated
+using (status = 'active' or seller_id = auth.uid());
+
+-- Angemeldete Nutzer dürfen eigene Angebote erstellen
+create policy "Eigene Angebote erstellen"
+on public.listings
+for insert
+to authenticated
+with check (
+  seller_id = auth.uid()
+  and status = 'active'
+);
+
+-- Verkäufer dürfen eigene Angebote löschen
+create policy "Eigene Angebote löschen"
+on public.listings
+for delete
+to authenticated
+using (seller_id = auth.uid());
+
+-- Verkäufer dürfen eigene Angebote bearbeiten
+create policy "Eigene Angebote bearbeiten"
+on public.listings
+for update
+to authenticated
+using (seller_id = auth.uid())
+with check (seller_id = auth.uid());
